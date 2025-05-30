@@ -1,4 +1,4 @@
-package com.codewithmosh.store.carts;
+package com.codewithmosh.store.products;
 
 import org.springframework.data.repository.CrudRepository;
 

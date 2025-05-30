@@ -1,7 +1,8 @@
 package com.codewithmosh.store.products;
 
-import com.codewithmosh.store.carts.CategoryRepository;
+import com.codewithmosh.store.common.ErrorDto;
 import lombok.AllArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -13,87 +14,59 @@ import java.util.List;
 @RequestMapping("/products")
 public class ProductController {
 
+    private final ProductService productService;
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
     private final ProductMapper productMapper;
 
     @GetMapping
     public List<ProductDto> getAllProducts(@RequestParam(required = false, name = "categoryId") Byte categoryId) {
-
-        List<Product> products;
-
-        if (categoryId != null) {
-            products = productRepository.findByCategoryId(categoryId);
-        } else {
-            products = productRepository.findAllWithCategory();
-        }
-
-        return products
-                .stream()
-                .map(productMapper::toDto)
-                .toList();
+        return productService.getAllProducts(categoryId);
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ProductDto> getProduct(@PathVariable Long id) {
-        var product = productRepository.findById(id).orElse(null);
-        if (product == null) {
-            return ResponseEntity.notFound().build();
-        }
-        return ResponseEntity.ok(productMapper.toDto(product));
+    public ProductDto getProduct(@PathVariable Long id) {
+        return productService.getProduct(id);
     }
 
     @PostMapping
     public ResponseEntity<ProductDto> createProduct(
-            @RequestBody ProductDto productDto,
+            @RequestBody ProductDto productDtoRequest,
             UriComponentsBuilder uriBuilder
             ) {
-        var product = productMapper.toEntity(productDto);
 
-        var category = categoryRepository.findById(productDto.getCategoryId()).orElse(null);
-        if (category == null) {
-            return ResponseEntity.badRequest().build();
-        }
-
-        product.setCategory(category);
-        productRepository.save(product);
-        productDto.setId(product.getId());
+        var productDto = productService.createProduct(productDtoRequest);
 
         var uri = uriBuilder.path("/products/{id}").buildAndExpand(productDto.getId()).toUri();
         return ResponseEntity.created(uri).body(productDto);
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<ProductDto> updateProduct(
+    public ProductDto updateProduct(
             @PathVariable Long id,
-            @RequestBody ProductDto productDto) {
-        var product = productRepository.findById(id).orElse(null);
-        if (product == null) {
-            return ResponseEntity.notFound().build();
-        }
+            @RequestBody ProductDto productDtoRequest) {
 
-        var category = categoryRepository.findById(productDto.getCategoryId()).orElse(null);
-        if (category == null) {
-            return ResponseEntity.badRequest().build();
-        }
-
-        productMapper.update(productDto, product);
-        product.setCategory(category);
-        productRepository.save(product);
-        productDto.setId(product.getId());
-
-        return ResponseEntity.ok(productMapper.toDto(product));
+        return productService.updateProduct(id, productDtoRequest);
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteProduct(@PathVariable Long id) {
-        var product = productRepository.findById(id).orElse(null);
-        if (product == null) {
-            return ResponseEntity.notFound().build();
-        }
-
-        productRepository.deleteById(id);
+        productService.deleteProduct(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @ExceptionHandler(ProductNotFoundException.class)
+    public ResponseEntity<ErrorDto> handleProductNotFound() {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                new ErrorDto("Product not found.")
+        );
+    }
+
+    @ExceptionHandler(CategoryNotFoundException.class)
+    public ResponseEntity<ErrorDto> handleCategoryNotFound() {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                new ErrorDto("Category not found.")
+        );
     }
 
 }
